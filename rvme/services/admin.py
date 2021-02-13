@@ -1,7 +1,11 @@
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.db.models import Count, Subquery, Q, Case, When, IntegerField, Value, F, Sum, ExpressionWrapper, CharField
+from django.db.models.functions import Coalesce
 
 from rvme.core.mixins import ReadOnlyAdminMixin
 from .models import TripSummary, EventSummary
+from .surecam.constants import EVENT_TYPES
 
 
 class BaseSummaryAdmin(admin.ModelAdmin):
@@ -46,8 +50,50 @@ class EventSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         # TODO #1a: Output: <QuerySet [
         #  {'user__id': 52, 'user__email': 'testdrive@evezy.co.uk', 'low_total': 451, 'medium_total': 92, 'high_total': 11, 'overspeed_total': 0, 'total_alerts': 554}
         #  ]>
+        overspeed_count = Sum(Case(
+            When(type=EVENT_TYPES.input1, then=1),
+            default=0,
+            output_field=IntegerField(),
+        ))
+        overspeed_qs = driver_summary_qs.values('type').annotate(overspeed_total=overspeed_count).order_by('-overspeed_total').values('overspeed_total')[:1]
 
-        # response.context_data['driver_event_summary'] = driver_event_summary
+        low_count = Sum(Case(
+            When(type=EVENT_TYPES.low, then=1),
+            default=0,
+            output_field=IntegerField(),
+        ))
+        low_qs = driver_summary_qs.values('type').annotate(low_total=low_count).order_by('-low_total').values(
+            'low_total')[:1]
+
+        medium_count = Sum(Case(
+            When(type=EVENT_TYPES.medium, then=1),
+            default=0,
+            output_field=IntegerField(),
+        ))
+        medium_qs = driver_summary_qs.values('type').annotate(medium_total=medium_count).order_by('-medium_total').values(
+            'medium_total')[:1]
+
+        high_count = Sum(Case(
+            When(type=EVENT_TYPES.high, then=1),
+            default=0,
+            output_field=IntegerField(),
+        ))
+        high_qs = driver_summary_qs.values('type').annotate(high_total=high_count).order_by(
+            '-high_total').values(
+            'high_total')[:1]
+
+        user_id_qs = driver_summary_qs.values('user_id')[:1]
+        user_email_qs = get_user_model().objects.filter(id__exact=user_id_qs).values('email')
+
+        driver_event_summary = low_qs.annotate(
+            high_total=Subquery(high_qs, output_field=IntegerField()),
+            medium_total=Subquery(medium_qs, output_field=IntegerField()),
+            overspeed_total=Subquery(overspeed_qs, output_field=IntegerField()),
+            total_alerts=F('high_total') + F('medium_total') + F('low_total') + F('overspeed_total'),
+            user__id=Subquery(user_id_qs, output_field=IntegerField()),
+            user__email=Subquery(user_email_qs, output_field=CharField())
+        )
+        response.context_data['driver_event_summary'] = driver_event_summary
 
         # TODO #1b: Re-using the filters you wrote above, produce a dictionary containing the totals for all drivers
         # TODO #1b: Output: {'high_total': 11,
@@ -55,8 +101,9 @@ class EventSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #  'medium_total': 92,
         #  'overspeed_total': 0,
         #  'total_alerts': 554}
-
-        # response.context_data['driver_event_summary_total'] = driver_event_summary_total
+        driver_event_summary_total = {**low_qs.first(), **medium_qs.first(), **high_qs.first(), **overspeed_qs.first()}
+        driver_event_summary_total['total_alerts'] = driver_event_summary_total['high_total'] + driver_event_summary_total['low_total'] + driver_event_summary_total['medium_total'] + driver_event_summary_total['overspeed_total']
+        response.context_data['driver_event_summary_total'] = driver_event_summary_total
 
         return response
 
