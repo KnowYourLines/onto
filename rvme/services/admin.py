@@ -138,24 +138,24 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
              {'time_period': 6, 'total_mileage': 216},
              {'time_period': 7, 'total_mileage': 41}]
             """
-
-            summary_over_time_period = list(
-                qs.filter(
-                    # Graph is time-based so we want to ignore parent Trips
-                    child_trips__isnull=True
-                ).annotate(
-                    time_period=ExtractWeekDay('start')
-                ).values(
-                    'time_period',
-                ).annotate(
-                     total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-                ).order_by().values(
-                     'time_period',
-                     'total_mileage'
+            if period == 'week_day' or period == 'week':
+                summary_over_time_period = list(
+                    qs.filter(
+                        # Graph is time-based so we want to ignore parent Trips
+                        child_trips__isnull=True
+                    ).annotate(
+                        time_period=ExtractWeekDay('start')
+                    ).values(
+                        'time_period',
+                    ).annotate(
+                         total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+                    ).order_by().values(
+                         'time_period',
+                         'total_mileage'
+                    )
+                    # TODO #3: Complete the rest of this filter to produce the output
+                    #  above where param period="week"
                 )
-                # TODO #3: Complete the rest of this filter to produce the output
-                #  above where param period="week"
-            )
 
             """
             This next block will take the data above and normalise it so that for the time period
@@ -165,21 +165,23 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
 
             # TODO #4: Remove the line below and modify the array from above so
             #  that the output where param period="hour" looks correct
-            summary_over_time_period = list(
-                qs.filter(
-                    # Graph is time-based so we want to ignore parent Trips
-                    child_trips__isnull=True
-                ).annotate(
-                    time_period=ExtractHour('start')
-                ).values(
-                    'time_period',
-                ).annotate(
-                    total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-                ).order_by().values(
-                    'time_period',
-                    'total_mileage'
+
+            if period == 'hour':
+                summary_over_time_period = list(
+                    qs.filter(
+                        # Graph is time-based so we want to ignore parent Trips
+                        child_trips__isnull=True
+                    ).annotate(
+                        time_period=ExtractHour('start')
+                    ).values(
+                        'time_period',
+                    ).annotate(
+                        total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+                    ).order_by().values(
+                        'time_period',
+                        'total_mileage'
+                    )
                 )
-            )
             summary_over_time_period_output = summary_over_time_period
             return summary_over_time_period_output
 
