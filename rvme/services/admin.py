@@ -144,7 +144,7 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                         # Graph is time-based so we want to ignore parent Trips
                         child_trips__isnull=True
                     ).annotate(
-                        time_period=ExtractWeekDay('start')
+                        time_period=ExtractWeekDay('stop')
                     ).values(
                         'time_period',
                     ).annotate(
@@ -172,7 +172,7 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                         # Graph is time-based so we want to ignore parent Trips
                         child_trips__isnull=True
                     ).annotate(
-                        time_period=ExtractHour('start')
+                        time_period=ExtractHour('stop')
                     ).values(
                         'time_period',
                     ).annotate(
