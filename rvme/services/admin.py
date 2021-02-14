@@ -1,13 +1,15 @@
 import json
 
 from django.contrib import admin
-from django.contrib.auth import get_user_model
-from django.db.models import Subquery, Case, When, IntegerField, F, Sum, CharField, Count, Value
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import Subquery, Case, When, IntegerField, F, Sum, Count, Value
+from django.db.models.functions import ExtractWeekDay
 
 from rvme.core.mixins import ReadOnlyAdminMixin
 from .models import TripSummary, EventSummary
 from .surecam.constants import EVENT_TYPES
-from ..bookings.models import Car
+
+MILES_PER_METRE = 0.000621371
 
 
 class BaseSummaryAdmin(admin.ModelAdmin):
@@ -143,7 +145,17 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                 qs.filter(
                     # Graph is time-based so we want to ignore parent Trips
                     child_trips__isnull=True
-                )  # TODO #3: Complete the rest of this filter to produce the output
+                ).annotate(
+                    time_period=ExtractWeekDay('start')
+                ).values(
+                    'time_period',
+                ).order_by().annotate(
+                     total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+                ).values(
+                     'time_period',
+                     'total_mileage'
+                )
+                # TODO #3: Complete the rest of this filter to produce the output
                 #  above where param period="week"
             )
 
@@ -185,7 +197,7 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'car__registration_number': 'LL68 MTI',
         #   'total': 4,
         #   'total_mileage': 55}]
-        MILES_PER_METRE = 0.000621371
+
         total = qs.values('car__registration_number', 'car__pk').annotate(total=Count('mileage')).order_by()
         with_total_mileage = total.annotate(total_mileage=Sum('mileage')*Value(MILES_PER_METRE))
         car_summary_output = list(with_total_mileage)
@@ -213,28 +225,28 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         Generate statistics by hour
         """
 
-        # summary_by_hour = generate_by_time_period(qs, 'hour', starting_index=0)
+        summary_by_hour = generate_by_time_period(qs, 'hour', starting_index=0)
 
-        # response.context_data['summary_by_hour'] = summary_by_hour
-        # response.context_data['summary_by_hour_json'] = json.dumps(
-        #     summary_by_hour,
-        #     sort_keys=False,
-        #     indent=1,
-        #     cls=DjangoJSONEncoder
-        # )
+        response.context_data['summary_by_hour'] = summary_by_hour
+        response.context_data['summary_by_hour_json'] = json.dumps(
+            summary_by_hour,
+            sort_keys=False,
+            indent=1,
+            cls=DjangoJSONEncoder
+        )
 
         """
         Generate statistics by weekday
         """
 
-        # summary_by_weekday = generate_by_time_period(qs, 'week_day', starting_index=1)
+        summary_by_weekday = generate_by_time_period(qs, 'week_day', starting_index=1)
 
-        # response.context_data['summary_by_weekday'] = summary_by_weekday
-        # response.context_data['summary_by_weekday_json'] = json.dumps(
-        #     summary_by_weekday,
-        #     sort_keys=False,
-        #     indent=1,
-        #     cls=DjangoJSONEncoder
-        # )
+        response.context_data['summary_by_weekday'] = summary_by_weekday
+        response.context_data['summary_by_weekday_json'] = json.dumps(
+            summary_by_weekday,
+            sort_keys=False,
+            indent=1,
+            cls=DjangoJSONEncoder
+        )
 
         return response
