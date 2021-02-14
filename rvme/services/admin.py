@@ -191,10 +191,9 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'total': 4,
         #   'total_mileage': 55}]
         MILES_PER_METRE = 0.000621371
-        total = qs.values('car_id').annotate(total=Count('mileage')).order_by()
+        total = qs.values('car__registration_number', 'car__pk').annotate(total=Count('mileage')).order_by()
         with_total_mileage = total.annotate(total_mileage=Sum('mileage')*Value(MILES_PER_METRE))
-        with_car__pk = with_total_mileage.annotate(car__pk=F('car_id')).order_by().values('total', 'total_mileage', 'car__pk')
-        car_summary_output = [{'car__registration_number': Car.objects.filter(id__exact=car['car__pk']).values()[0]['registration_number'], **car} for car in list(with_car__pk)]
+        car_summary_output = list(with_total_mileage)
         response.context_data['car_summary'] = car_summary_output
         response.context_data['car_summary_json'] = json.dumps(car_summary_output)
 
@@ -204,12 +203,9 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'user__email': 'testdrive@evezy.co.uk',
         #   'user__id': 52,
         #   'user__pk': 52}]
-        total = qs.values('user').annotate(total=Count('mileage')).order_by()
+        total = qs.values('user__id', 'user__pk', 'user__email').annotate(total=Count('mileage')).order_by()
         with_total_mileage = total.annotate(total_mileage=Sum('mileage') * Value(MILES_PER_METRE))
-        with_user__pk = with_total_mileage.annotate(user__pk=F('user_id')).order_by()
-        with_user__id = with_user__pk.annotate(user__id=F('user_id')).order_by()
-        driver_summary_output = [{'user__email': get_user_model().objects.filter(id__exact=user['user__pk']).values()[0][
-            'email'], **user} for user in list(with_user__id)]
+        driver_summary_output = list(with_total_mileage)
         response.context_data['driver_summary'] = driver_summary_output
         response.context_data['driver_summary_json'] = json.dumps(driver_summary_output)
 
