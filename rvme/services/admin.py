@@ -2,7 +2,7 @@ import json
 
 from django.contrib import admin
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db.models import Subquery, Case, When, IntegerField, F, Sum, Count, Value
+from django.db.models import Case, When, IntegerField, F, Sum, Count, Value
 from django.db.models.functions import ExtractWeekDay, ExtractHour
 
 from rvme.core.mixins import ReadOnlyAdminMixin
@@ -59,39 +59,37 @@ class EventSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
             default=0,
             output_field=IntegerField(),
         ))
-        low_qs = driver_summary_qs.values('user__id', 'user__email', 'type').annotate(low_total=low_count).order_by('-low_total').values(
-            'low_total', 'user__id', 'user__email')[:1]
 
         medium_count = Sum(Case(
             When(type=EVENT_TYPES.medium, then=1),
             default=0,
             output_field=IntegerField(),
         ))
-        medium_qs = driver_summary_qs.values('type').annotate(medium_total=medium_count).order_by('-medium_total').values(
-            'medium_total')[:1]
-
         high_count = Sum(Case(
             When(type=EVENT_TYPES.high, then=1),
             default=0,
             output_field=IntegerField(),
         ))
-        high_qs = driver_summary_qs.values('type').annotate(high_total=high_count).order_by(
-            '-high_total').values(
-            'high_total')[:1]
 
         overspeed_count = Sum(Case(
             When(type=EVENT_TYPES.input1, then=1),
             default=0,
             output_field=IntegerField(),
         ))
-        overspeed_qs = driver_summary_qs.values('type').annotate(overspeed_total=overspeed_count).order_by('-overspeed_total').values('overspeed_total')[:1]
 
-        driver_event_summary = low_qs.annotate(
-            high_total=Subquery(high_qs, output_field=IntegerField()),
-            medium_total=Subquery(medium_qs, output_field=IntegerField()),
-            overspeed_total=Subquery(overspeed_qs, output_field=IntegerField()),
-            total_alerts=F('high_total') + F('medium_total') + F('low_total') + F('overspeed_total'),
-        )
+        driver_event_summary = driver_summary_qs.values(
+            'user__id', 'user__email'
+        ).annotate(
+            low_total=low_count
+        ).annotate(
+            medium_total=medium_count
+        ).annotate(
+            high_total=high_count
+        ).annotate(
+            overspeed_total=overspeed_count
+        ).annotate(
+            total_alerts=F('high_total') + F('medium_total') + F('low_total') + F('overspeed_total')
+        ).order_by()
         response.context_data['driver_event_summary'] = driver_event_summary
 
         # TODO #1b: Re-using the filters you wrote above, produce a dictionary containing the totals for all drivers
@@ -100,8 +98,8 @@ class EventSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #  'medium_total': 92,
         #  'overspeed_total': 0,
         #  'total_alerts': 554}
-        driver_event_summary_total = {**low_qs.first(), **medium_qs.first(), **high_qs.first(), **overspeed_qs.first()}
-        driver_event_summary_total['total_alerts'] = driver_event_summary_total['high_total'] + driver_event_summary_total['low_total'] + driver_event_summary_total['medium_total'] + driver_event_summary_total['overspeed_total']
+        driver_event_summary_total = list(driver_event_summary)[0]
+        driver_event_summary_total.pop('user__id')
         response.context_data['driver_event_summary_total'] = driver_event_summary_total
 
         return response
