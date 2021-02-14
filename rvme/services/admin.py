@@ -221,7 +221,6 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                 total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
             ).order_by()
         )
-        print(car_summary_output)
         response.context_data['car_summary'] = car_summary_output
         response.context_data['car_summary_json'] = json.dumps(car_summary_output)
 
