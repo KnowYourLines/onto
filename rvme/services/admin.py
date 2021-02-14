@@ -211,7 +211,9 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'total_mileage': 55}]
 
         car_summary_output = list(
-            qs.values(
+            qs.filter(
+                parent_trip__isnull=True
+            ).values(
                 'car__registration_number', 'car__pk'
             ).annotate(
                 total=Count('mileage')
@@ -219,6 +221,7 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                 total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
             ).order_by()
         )
+        print(car_summary_output)
         response.context_data['car_summary'] = car_summary_output
         response.context_data['car_summary_json'] = json.dumps(car_summary_output)
 
@@ -230,7 +233,9 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'user__pk': 52}]
 
         driver_summary_output = list(
-            qs.values(
+            qs.filter(
+                parent_trip__isnull=True
+            ).values(
                 'user__id', 'user__pk', 'user__email'
             ).annotate(
                 total=Count('mileage')
@@ -244,7 +249,9 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         # TODO #2c: Re-using the filters you wrote above, create a dict for the total trips and mileage
         #  Output: {'total': 112, 'total_mileage': 847}
         trip_summary_total = list(
-            qs.values(
+            qs.filter(
+                parent_trip__isnull=True
+            ).values(
                 'user__id', 'user__pk', 'user__email'
             ).annotate(
                 total=Count('mileage')
