@@ -165,22 +165,22 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
 
             # TODO #4: Remove the line below and modify the array from above so
             #  that the output where param period="hour" looks correct
-            summary_over_time_period_hour = list(
-                qs.filter(
-                    # Graph is time-based so we want to ignore parent Trips
-                    child_trips__isnull=True
-                ).annotate(
-                    time_period=ExtractHour('start')
-                ).values(
-                    'time_period',
-                ).order_by().annotate(
-                    total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-                ).values(
-                    'time_period',
-                    'total_mileage'
-                )
-            )
-            summary_over_time_period_output = summary_over_time_period_hour
+            # summary_over_time_period = list(
+            #     qs.filter(
+            #         # Graph is time-based so we want to ignore parent Trips
+            #         child_trips__isnull=True
+            #     ).annotate(
+            #         time_period=ExtractHour('start')
+            #     ).values(
+            #         'time_period',
+            #     ).order_by().annotate(
+            #         total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+            #     ).values(
+            #         'time_period',
+            #         'total_mileage'
+            #     )
+            # )
+            summary_over_time_period_output = summary_over_time_period
             return summary_over_time_period_output
 
         response = super().changelist_view(
@@ -210,9 +210,15 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'total': 4,
         #   'total_mileage': 55}]
 
-        total = qs.values('car__registration_number', 'car__pk').annotate(total=Count('mileage')).order_by()
-        with_total_mileage = total.annotate(total_mileage=Sum('mileage')*Value(MILES_PER_METRE))
-        car_summary_output = list(with_total_mileage)
+        car_summary_output = list(
+            qs.values(
+                'car__registration_number', 'car__pk'
+            ).annotate(
+                total=Count('mileage')
+            ).annotate(
+                total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+            ).order_by()
+        )
         response.context_data['car_summary'] = car_summary_output
         response.context_data['car_summary_json'] = json.dumps(car_summary_output)
 
@@ -222,43 +228,59 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'user__email': 'testdrive@evezy.co.uk',
         #   'user__id': 52,
         #   'user__pk': 52}]
-        total = qs.values('user__id', 'user__pk', 'user__email').annotate(total=Count('mileage')).order_by()
-        with_total_mileage = total.annotate(total_mileage=Sum('mileage') * Value(MILES_PER_METRE))
-        driver_summary_output = list(with_total_mileage)
+
+        driver_summary_output = list(
+            qs.values(
+                'user__id', 'user__pk', 'user__email'
+            ).annotate(
+                total=Count('mileage')
+            ).annotate(
+                total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+            ).order_by()
+        )
         response.context_data['driver_summary'] = driver_summary_output
         response.context_data['driver_summary_json'] = json.dumps(driver_summary_output)
 
         # TODO #2c: Re-using the filters you wrote above, create a dict for the total trips and mileage
         #  Output: {'total': 112, 'total_mileage': 847}
-        trip_summary_total = list(with_total_mileage.values('total', 'total_mileage'))[0]
+        trip_summary_total = list(
+            qs.values(
+                'user__id', 'user__pk', 'user__email'
+            ).annotate(
+                total=Count('mileage')
+            ).annotate(
+                total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+            ).order_by().values(
+                'total', 'total_mileage')
+        )[0]
         response.context_data['car_summary_total'] = response.context_data['driver_summary_total'] = trip_summary_total
 
         """
         Generate statistics by hour
         """
 
-        summary_by_hour = generate_by_time_period(qs, 'hour', starting_index=0)
-
-        response.context_data['summary_by_hour'] = summary_by_hour
-        response.context_data['summary_by_hour_json'] = json.dumps(
-            summary_by_hour,
-            sort_keys=False,
-            indent=1,
-            cls=DjangoJSONEncoder
-        )
+        # summary_by_hour = generate_by_time_period(qs, 'hour', starting_index=0)
+        #
+        # response.context_data['summary_by_hour'] = summary_by_hour
+        # response.context_data['summary_by_hour_json'] = json.dumps(
+        #     summary_by_hour,
+        #     sort_keys=False,
+        #     indent=1,
+        #     cls=DjangoJSONEncoder
+        # )
 
         """
         Generate statistics by weekday
         """
 
-        # summary_by_weekday = generate_by_time_period(qs, 'week_day', starting_index=1)
-        #
-        # response.context_data['summary_by_weekday'] = summary_by_weekday
-        # response.context_data['summary_by_weekday_json'] = json.dumps(
-        #     summary_by_weekday,
-        #     sort_keys=False,
-        #     indent=1,
-        #     cls=DjangoJSONEncoder
-        # )
+        summary_by_weekday = generate_by_time_period(qs, 'week_day', starting_index=1)
+
+        response.context_data['summary_by_weekday'] = summary_by_weekday
+        response.context_data['summary_by_weekday_json'] = json.dumps(
+            summary_by_weekday,
+            sort_keys=False,
+            indent=1,
+            cls=DjangoJSONEncoder
+        )
 
         return response
