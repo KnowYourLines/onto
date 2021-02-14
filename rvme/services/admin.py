@@ -3,7 +3,7 @@ import json
 from django.contrib import admin
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Subquery, Case, When, IntegerField, F, Sum, Count, Value
-from django.db.models.functions import ExtractWeekDay
+from django.db.models.functions import ExtractWeekDay, ExtractHour
 
 from rvme.core.mixins import ReadOnlyAdminMixin
 from .models import TripSummary, EventSummary
@@ -167,8 +167,22 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
 
             # TODO #4: Remove the line below and modify the array from above so
             #  that the output where param period="hour" looks correct
-            summary_over_time_period_output = summary_over_time_period
-
+            summary_over_time_period_hour = list(
+                qs.filter(
+                    # Graph is time-based so we want to ignore parent Trips
+                    child_trips__isnull=True
+                ).annotate(
+                    time_period=ExtractHour('start')
+                ).values(
+                    'time_period',
+                ).order_by().annotate(
+                    total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+                ).values(
+                    'time_period',
+                    'total_mileage'
+                )
+            )
+            summary_over_time_period_output = summary_over_time_period_hour
             return summary_over_time_period_output
 
         response = super().changelist_view(
@@ -239,14 +253,14 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         Generate statistics by weekday
         """
 
-        summary_by_weekday = generate_by_time_period(qs, 'week_day', starting_index=1)
-
-        response.context_data['summary_by_weekday'] = summary_by_weekday
-        response.context_data['summary_by_weekday_json'] = json.dumps(
-            summary_by_weekday,
-            sort_keys=False,
-            indent=1,
-            cls=DjangoJSONEncoder
-        )
+        # summary_by_weekday = generate_by_time_period(qs, 'week_day', starting_index=1)
+        #
+        # response.context_data['summary_by_weekday'] = summary_by_weekday
+        # response.context_data['summary_by_weekday_json'] = json.dumps(
+        #     summary_by_weekday,
+        #     sort_keys=False,
+        #     indent=1,
+        #     cls=DjangoJSONEncoder
+        # )
 
         return response
