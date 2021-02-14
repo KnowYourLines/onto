@@ -147,9 +147,9 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                     time_period=ExtractWeekDay('start')
                 ).values(
                     'time_period',
-                ).order_by().annotate(
+                ).annotate(
                      total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-                ).values(
+                ).order_by().values(
                      'time_period',
                      'total_mileage'
                 )
@@ -165,21 +165,21 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
 
             # TODO #4: Remove the line below and modify the array from above so
             #  that the output where param period="hour" looks correct
-            # summary_over_time_period = list(
-            #     qs.filter(
-            #         # Graph is time-based so we want to ignore parent Trips
-            #         child_trips__isnull=True
-            #     ).annotate(
-            #         time_period=ExtractHour('start')
-            #     ).values(
-            #         'time_period',
-            #     ).order_by().annotate(
-            #         total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-            #     ).values(
-            #         'time_period',
-            #         'total_mileage'
-            #     )
-            # )
+            summary_over_time_period = list(
+                qs.filter(
+                    # Graph is time-based so we want to ignore parent Trips
+                    child_trips__isnull=True
+                ).annotate(
+                    time_period=ExtractHour('start')
+                ).values(
+                    'time_period',
+                ).annotate(
+                    total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
+                ).order_by().values(
+                    'time_period',
+                    'total_mileage'
+                )
+            )
             summary_over_time_period_output = summary_over_time_period
             return summary_over_time_period_output
 
@@ -259,15 +259,15 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         Generate statistics by hour
         """
 
-        # summary_by_hour = generate_by_time_period(qs, 'hour', starting_index=0)
-        #
-        # response.context_data['summary_by_hour'] = summary_by_hour
-        # response.context_data['summary_by_hour_json'] = json.dumps(
-        #     summary_by_hour,
-        #     sort_keys=False,
-        #     indent=1,
-        #     cls=DjangoJSONEncoder
-        # )
+        summary_by_hour = generate_by_time_period(qs, 'hour', starting_index=0)
+
+        response.context_data['summary_by_hour'] = summary_by_hour
+        response.context_data['summary_by_hour_json'] = json.dumps(
+            summary_by_hour,
+            sort_keys=False,
+            indent=1,
+            cls=DjangoJSONEncoder
+        )
 
         """
         Generate statistics by weekday
