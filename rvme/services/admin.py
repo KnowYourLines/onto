@@ -52,20 +52,13 @@ class EventSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         # TODO #1a: Output: <QuerySet [
         #  {'user__id': 52, 'user__email': 'testdrive@evezy.co.uk', 'low_total': 451, 'medium_total': 92, 'high_total': 11, 'overspeed_total': 0, 'total_alerts': 554}
         #  ]>
-        overspeed_count = Sum(Case(
-            When(type=EVENT_TYPES.input1, then=1),
-            default=0,
-            output_field=IntegerField(),
-        ))
-        overspeed_qs = driver_summary_qs.values('type').annotate(overspeed_total=overspeed_count).order_by('-overspeed_total').values('overspeed_total')[:1]
-
         low_count = Sum(Case(
             When(type=EVENT_TYPES.low, then=1),
             default=0,
             output_field=IntegerField(),
         ))
-        low_qs = driver_summary_qs.values('type').annotate(low_total=low_count).order_by('-low_total').values(
-            'low_total')[:1]
+        low_qs = driver_summary_qs.values('user__id', 'user__email', 'type').annotate(low_total=low_count).order_by('-low_total').values(
+            'low_total', 'user__id', 'user__email')[:1]
 
         medium_count = Sum(Case(
             When(type=EVENT_TYPES.medium, then=1),
@@ -84,16 +77,18 @@ class EventSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
             '-high_total').values(
             'high_total')[:1]
 
-        user_id_qs = driver_summary_qs.values('user_id')[:1]
-        user_email_qs = get_user_model().objects.filter(id__exact=user_id_qs).values('email')
+        overspeed_count = Sum(Case(
+            When(type=EVENT_TYPES.input1, then=1),
+            default=0,
+            output_field=IntegerField(),
+        ))
+        overspeed_qs = driver_summary_qs.values('type').annotate(overspeed_total=overspeed_count).order_by('-overspeed_total').values('overspeed_total')[:1]
 
         driver_event_summary = low_qs.annotate(
             high_total=Subquery(high_qs, output_field=IntegerField()),
             medium_total=Subquery(medium_qs, output_field=IntegerField()),
             overspeed_total=Subquery(overspeed_qs, output_field=IntegerField()),
             total_alerts=F('high_total') + F('medium_total') + F('low_total') + F('overspeed_total'),
-            user__id=Subquery(user_id_qs, output_field=IntegerField()),
-            user__email=Subquery(user_email_qs, output_field=CharField())
         )
         response.context_data['driver_event_summary'] = driver_event_summary
 
