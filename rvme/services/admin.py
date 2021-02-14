@@ -1,11 +1,13 @@
+import json
+
 from django.contrib import admin
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Subquery, Q, Case, When, IntegerField, Value, F, Sum, ExpressionWrapper, CharField
-from django.db.models.functions import Coalesce
+from django.db.models import Subquery, Case, When, IntegerField, F, Sum, CharField, Count, Value
 
 from rvme.core.mixins import ReadOnlyAdminMixin
 from .models import TripSummary, EventSummary
 from .surecam.constants import EVENT_TYPES
+from ..bookings.models import Car
 
 
 class BaseSummaryAdmin(admin.ModelAdmin):
@@ -175,7 +177,6 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         """
         Generate summary tables
         """
-
         # TODO #2a: Group the trips by car and count the total number of trips and total mileage.
         #  Output: [{'car__pk': 44,
         #   'car__registration_number': 'PK68 RHW',
@@ -189,9 +190,13 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'car__registration_number': 'LL68 MTI',
         #   'total': 4,
         #   'total_mileage': 55}]
-
-        # response.context_data['car_summary'] = car_summary_output
-        # response.context_data['car_summary_json'] = json.dumps(car_summary_output)
+        MILES_PER_METRE = 0.000621371
+        total = qs.values('car_id').annotate(total=Count('mileage')).order_by()
+        with_total_mileage = total.annotate(total_mileage=Sum('mileage')*Value(MILES_PER_METRE))
+        with_car__pk = with_total_mileage.annotate(car__pk=F('car_id')).order_by().values('total', 'total_mileage', 'car__pk')
+        car_summary_output = [{'car__registration_number': Car.objects.filter(id__exact=car['car__pk']).values()[0]['registration_number'], **car} for car in list(with_car__pk)]
+        response.context_data['car_summary'] = car_summary_output
+        response.context_data['car_summary_json'] = json.dumps(car_summary_output)
 
         # TODO #2b: Re-using the filters you wrote above, do the same but driver-focused instead of car-focused
         #  Output: [{'total': 112,
@@ -199,14 +204,19 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
         #   'user__email': 'testdrive@evezy.co.uk',
         #   'user__id': 52,
         #   'user__pk': 52}]
-
-        # response.context_data['driver_summary'] = driver_summary_output
-        # response.context_data['driver_summary_json'] = json.dumps(driver_summary_output)
+        total = qs.values('user').annotate(total=Count('mileage')).order_by()
+        with_total_mileage = total.annotate(total_mileage=Sum('mileage') * Value(MILES_PER_METRE))
+        with_user__pk = with_total_mileage.annotate(user__pk=F('user_id')).order_by()
+        with_user__id = with_user__pk.annotate(user__id=F('user_id')).order_by()
+        driver_summary_output = [{'user__email': get_user_model().objects.filter(id__exact=user['user__pk']).values()[0][
+            'email'], **user} for user in list(with_user__id)]
+        response.context_data['driver_summary'] = driver_summary_output
+        response.context_data['driver_summary_json'] = json.dumps(driver_summary_output)
 
         # TODO #2c: Re-using the filters you wrote above, create a dict for the total trips and mileage
         #  Output: {'total': 112, 'total_mileage': 847}
-
-        # response.context_data['car_summary_total'] = response.context_data['driver_summary_total'] = trip_summary_total
+        trip_summary_total = list(with_total_mileage.values('total', 'total_mileage'))[0]
+        response.context_data['car_summary_total'] = response.context_data['driver_summary_total'] = trip_summary_total
 
         """
         Generate statistics by hour
