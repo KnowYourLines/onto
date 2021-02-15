@@ -149,10 +149,7 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                         'time_period',
                     ).annotate(
                          total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-                    ).order_by().values(
-                         'time_period',
-                         'total_mileage'
-                    )
+                    ).order_by('time_period')
                     # TODO #3: Complete the rest of this filter to produce the output
                     #  above where param period="week"
                 )
@@ -177,11 +174,38 @@ class TripSummaryAdmin(ReadOnlyAdminMixin, BaseSummaryAdmin):
                         'time_period',
                     ).annotate(
                         total_mileage=Sum('mileage') * Value(MILES_PER_METRE)
-                    ).order_by().values(
-                        'time_period',
-                        'total_mileage'
-                    )
+                    ).order_by('time_period')
                 )
+                normalised_summary = []
+                for index, period_mileage in enumerate(summary_over_time_period[1:], start=1):
+                    previous_period_mileage = summary_over_time_period[index - 1]
+                    expected_time_period = previous_period_mileage['time_period'] + 1
+                    actual_time_period = period_mileage['time_period']
+
+                    if actual_time_period != expected_time_period:
+                        missing_hours = []
+                        for time_period in range(expected_time_period, actual_time_period):
+                            missing_hours.append({'time_period': time_period, 'total_mileage': 0})
+                        normalised_summary += missing_hours
+
+                    normalised_summary.append(period_mileage)
+
+                summary_over_time_period = summary_over_time_period[:1] + normalised_summary
+
+                first_time_period = summary_over_time_period[0]['time_period']
+                if first_time_period != 0:
+                    missing_hours = []
+                    for time_period in range(first_time_period):
+                        missing_hours.append({'time_period': time_period, 'total_mileage': 0})
+                    summary_over_time_period = missing_hours + summary_over_time_period
+
+                last_time_period = summary_over_time_period[-1]['time_period']
+                if last_time_period != 23:
+                    missing_hours = []
+                    for time_period in range(last_time_period+1, 24):
+                        missing_hours.append({'time_period': time_period, 'total_mileage': 0})
+                    summary_over_time_period = summary_over_time_period + missing_hours
+
             summary_over_time_period_output = summary_over_time_period
             return summary_over_time_period_output
 
